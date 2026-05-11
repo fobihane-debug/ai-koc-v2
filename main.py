@@ -63,6 +63,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "AI Koç aktif.\nDisiplin sistemi başlatıldı."
     )
 
+async def gorev(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    mesaj = """
+BUGÜNÜN GÖREVLERİ
+
+✅ 3 litre su
+✅ Antrenman
+✅ Şeker yok
+✅ 10 dk yürüyüş
+✅ Erken uyku
+
+Bitince:
+tamamladım
+yaz.
+"""
+
+    await update.message.reply_text(mesaj)
+
 async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         users = load_users()
@@ -77,11 +94,36 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "completed_today": False
             }
 
+        message_text = update.message.text.lower()
+
+        if "tamamladım" in message_text:
+
+            if users[user_id]["completed_today"]:
+                await update.message.reply_text(
+                    "Bugünkü görev zaten tamamlandı."
+                )
+                return
+
+            users[user_id]["completed_today"] = True
+            users[user_id]["streak"] += 1
+
+            save_users(users)
+
+            await update.message.reply_text(
+                f"""
+🔥 Görev tamamlandı.
+
+Streak:
+{users[user_id]['streak']} gün
+
+Disiplini bozma.
+"""
+            )
+            return
+
         users[user_id]["messages"] += 1
 
         save_users(users)
-
-        user_message = update.message.text
 
         memory_text = f"""
 Kullanıcı adı: {users[user_id]['name']}
@@ -102,7 +144,7 @@ Streak: {users[user_id]['streak']}
                 },
                 {
                     "role": "user",
-                    "content": user_message
+                    "content": update.message.text
                 },
             ],
             max_tokens=300,
@@ -116,63 +158,10 @@ Streak: {users[user_id]['streak']}
         print("HATA:", e)
         await update.message.reply_text(f"Hata oluştu:\n{e}")
 
-async def gorev(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    mesaj = """
-BUGÜNÜN GÖREVLERİ
-
-✅ 3 litre su
-✅ Antrenman
-✅ Şeker yok
-✅ 10 dk yürüyüş
-✅ Erken uyku
-
-Bitince:
-tamamladım
-yaz.
-"""
-
-    await update.message.reply_text(mesaj)
-
-async def tamamlandi(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    users = load_users()
-
-    user_id = str(update.effective_user.id)
-
-    if user_id not in users:
-        return
-
-    if users[user_id]["completed_today"]:
-        await update.message.reply_text(
-            "Bugünkü görev zaten tamamlandı."
-        )
-        return
-
-    users[user_id]["completed_today"] = True
-    users[user_id]["streak"] += 1
-
-    save_users(users)
-
-    await update.message.reply_text(
-        f"""
-Görev tamamlandı.
-
-🔥 Streak: {users[user_id]['streak']} gün
-
-Disiplini bozma.
-"""
-    )
-
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("gorev", gorev))
-
-app.add_handler(
-    MessageHandler(
-        filters.Regex("(?i)tamamladım"),
-        tamamlandi
-    )
-)
 
 app.add_handler(
     MessageHandler(
@@ -182,31 +171,6 @@ app.add_handler(
 )
 
 scheduler = BackgroundScheduler()
-
-def morning_message():
-    if CHAT_ID:
-        app.bot.send_message(
-            chat_id=CHAT_ID,
-            text="Gün başladı. Kalk. Su iç. Bahane üretme."
-        )
-
-def water_message():
-    if CHAT_ID:
-        app.bot.send_message(
-            chat_id=CHAT_ID,
-            text="Su içme zamanı."
-        )
-
-def workout_message():
-    if CHAT_ID:
-        app.bot.send_message(
-            chat_id=CHAT_ID,
-            text="Antrenman saati. Erteleme yok."
-        )
-
-scheduler.add_job(morning_message, "cron", hour=9, minute=0)
-scheduler.add_job(water_message, "cron", hour=13, minute=0)
-scheduler.add_job(workout_message, "cron", hour=18, minute=0)
 
 scheduler.start()
 
