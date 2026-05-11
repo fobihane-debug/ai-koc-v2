@@ -54,7 +54,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "name": update.effective_user.first_name,
             "messages": 0,
             "streak": 0,
-            "completed_today": False
+            "completed_today": False,
+            "weight": None,
+            "weight_history": []
         }
 
         save_users(users)
@@ -80,6 +82,67 @@ yaz.
 
     await update.message.reply_text(mesaj)
 
+async def kilo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    users = load_users()
+
+    user_id = str(update.effective_user.id)
+
+    if user_id not in users:
+        return
+
+    try:
+        kg = float(context.args[0])
+
+    except:
+        await update.message.reply_text(
+            "Kullanım:\n/kilo 82"
+        )
+        return
+
+    users[user_id]["weight"] = kg
+    users[user_id]["weight_history"].append(kg)
+
+    save_users(users)
+
+    await update.message.reply_text(
+        f"""
+✅ Kilo kaydedildi.
+
+Şu anki kilo:
+{kg} kg
+"""
+    )
+
+async def durum(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    users = load_users()
+
+    user_id = str(update.effective_user.id)
+
+    if user_id not in users:
+        return
+
+    user = users[user_id]
+
+    await update.message.reply_text(
+        f"""
+📊 DURUM
+
+👤 İsim:
+{user['name']}
+
+🔥 Streak:
+{user['streak']} gün
+
+💬 Mesaj:
+{user['messages']}
+
+⚖️ Kilo:
+{user['weight']} kg
+"""
+    )
+
 async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         users = load_users()
@@ -91,7 +154,9 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "name": update.effective_user.first_name,
                 "messages": 0,
                 "streak": 0,
-                "completed_today": False
+                "completed_today": False,
+                "weight": None,
+                "weight_history": []
             }
 
         message_text = update.message.text.lower()
@@ -129,6 +194,7 @@ Disiplini bozma.
 Kullanıcı adı: {users[user_id]['name']}
 Toplam mesaj: {users[user_id]['messages']}
 Streak: {users[user_id]['streak']}
+Kilo: {users[user_id]['weight']}
 """
 
         response = client.chat.completions.create(
@@ -162,6 +228,8 @@ app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("gorev", gorev))
+app.add_handler(CommandHandler("kilo", kilo))
+app.add_handler(CommandHandler("durum", durum))
 
 app.add_handler(
     MessageHandler(
