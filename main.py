@@ -52,7 +52,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id not in users:
         users[user_id] = {
             "name": update.effective_user.first_name,
-            "messages": 0
+            "messages": 0,
+            "streak": 0,
+            "completed_today": False
         }
 
         save_users(users)
@@ -70,7 +72,9 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user_id not in users:
             users[user_id] = {
                 "name": update.effective_user.first_name,
-                "messages": 0
+                "messages": 0,
+                "streak": 0,
+                "completed_today": False
             }
 
         users[user_id]["messages"] += 1
@@ -82,6 +86,7 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         memory_text = f"""
 Kullanıcı adı: {users[user_id]['name']}
 Toplam mesaj: {users[user_id]['messages']}
+Streak: {users[user_id]['streak']}
 """
 
         response = client.chat.completions.create(
@@ -111,10 +116,70 @@ Toplam mesaj: {users[user_id]['messages']}
         print("HATA:", e)
         await update.message.reply_text(f"Hata oluştu:\n{e}")
 
+async def gorev(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    mesaj = """
+BUGÜNÜN GÖREVLERİ
+
+✅ 3 litre su
+✅ Antrenman
+✅ Şeker yok
+✅ 10 dk yürüyüş
+✅ Erken uyku
+
+Bitince:
+tamamladım
+yaz.
+"""
+
+    await update.message.reply_text(mesaj)
+
+async def tamamlandi(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    users = load_users()
+
+    user_id = str(update.effective_user.id)
+
+    if user_id not in users:
+        return
+
+    if users[user_id]["completed_today"]:
+        await update.message.reply_text(
+            "Bugünkü görev zaten tamamlandı."
+        )
+        return
+
+    users[user_id]["completed_today"] = True
+    users[user_id]["streak"] += 1
+
+    save_users(users)
+
+    await update.message.reply_text(
+        f"""
+Görev tamamlandı.
+
+🔥 Streak: {users[user_id]['streak']} gün
+
+Disiplini bozma.
+"""
+    )
+
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat))
+app.add_handler(CommandHandler("gorev", gorev))
+
+app.add_handler(
+    MessageHandler(
+        filters.Regex("(?i)tamamladım"),
+        tamamlandi
+    )
+)
+
+app.add_handler(
+    MessageHandler(
+        filters.TEXT & ~filters.COMMAND,
+        chat
+    )
+)
 
 scheduler = AsyncIOScheduler()
 
