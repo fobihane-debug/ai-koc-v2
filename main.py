@@ -1,3 +1,5 @@
+# main.py
+
 import os
 
 from telegram.ext import (
@@ -17,6 +19,7 @@ from commands import (
     admin,
     grafik,
     foto,
+    voice_chat,
     button_click,
     chat
 )
@@ -27,7 +30,6 @@ TOKEN = os.environ["TOKEN"]
 
 app = ApplicationBuilder().token(TOKEN).build()
 
-# Komutlar
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("gorev", gorev))
 app.add_handler(CommandHandler("kilo", kilo))
@@ -37,12 +39,10 @@ app.add_handler(CommandHandler("admin", admin))
 app.add_handler(CommandHandler("grafik", grafik))
 app.add_handler(CommandHandler("foto", foto))
 
-# Buton sistemi
 app.add_handler(
     CallbackQueryHandler(button_click)
 )
 
-# Fotoğraf sistemi
 app.add_handler(
     MessageHandler(
         filters.PHOTO,
@@ -50,7 +50,13 @@ app.add_handler(
     )
 )
 
-# AI sohbet sistemi
+app.add_handler(
+    MessageHandler(
+        filters.VOICE,
+        voice_chat
+    )
+)
+
 app.add_handler(
     MessageHandler(
         filters.TEXT & ~filters.COMMAND,

@@ -3,3 +3,4 @@ openai
 apscheduler
 matplotlib
 pillow
+pydub

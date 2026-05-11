@@ -1,3 +1,5 @@
+# ai_system.py
+
 from openai import OpenAI
 import os
 
@@ -84,3 +86,12 @@ Yemek fotoğrafını analiz et.
     )
 
     return response.choices[0].message.content
+
+def ask_voice_ai(audio_file):
+
+    transcript = client.audio.transcriptions.create(
+        model="whisper-1",
+        file=audio_file
+    )
+
+    return transcript.text

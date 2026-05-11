@@ -1,3 +1,6 @@
+# commands.py
+
+import os
 import base64
 import matplotlib.pyplot as plt
 
@@ -18,7 +21,8 @@ from database import (
 
 from ai_system import (
     ask_ai,
-    ask_food_ai
+    ask_food_ai,
+    ask_voice_ai
 )
 
 ADMIN_ID = "7653341950"
@@ -314,6 +318,49 @@ async def foto(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
 
         print("FOTO HATA:", e)
+
+        await update.message.reply_text(
+            f"Hata oluştu:\n{e}"
+        )
+
+async def voice_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    try:
+
+        voice = update.message.voice
+
+        file = await context.bot.get_file(
+            voice.file_id
+        )
+
+        ogg_path = "voice.ogg"
+
+        await file.download_to_drive(ogg_path)
+
+        with open(ogg_path, "rb") as audio_file:
+
+            transcript = ask_voice_ai(audio_file)
+
+        await update.message.reply_text(
+            f"🎤 Sen:\n{transcript}"
+        )
+
+        user_id = str(update.effective_user.id)
+
+        user = get_user(user_id)
+
+        cevap = await ask_ai(
+            user,
+            transcript
+        )
+
+        await update.message.reply_text(
+            f"🤖 AI Koç:\n{cevap}"
+        )
+
+    except Exception as e:
+
+        print("VOICE HATA:", e)
 
         await update.message.reply_text(
             f"Hata oluştu:\n{e}"
