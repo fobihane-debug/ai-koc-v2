@@ -172,6 +172,23 @@ app.add_handler(
 
 scheduler = BackgroundScheduler()
 
+def reset_daily_tasks():
+    users = load_users()
+
+    for user_id in users:
+        users[user_id]["completed_today"] = False
+
+    save_users(users)
+
+    print("Günlük görevler sıfırlandı.")
+
+scheduler.add_job(
+    reset_daily_tasks,
+    "cron",
+    hour=0,
+    minute=0
+)
+
 scheduler.start()
 
 print("Bot aktif...")
