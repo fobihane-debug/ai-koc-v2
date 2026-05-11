@@ -11,7 +11,7 @@ from telegram.ext import (
 )
 
 from openai import OpenAI
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.schedulers.background import BackgroundScheduler
 
 TOKEN = os.environ["TOKEN"]
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
@@ -181,25 +181,25 @@ app.add_handler(
     )
 )
 
-scheduler = AsyncIOScheduler()
+scheduler = BackgroundScheduler()
 
-async def morning_message():
+def morning_message():
     if CHAT_ID:
-        await app.bot.send_message(
+        app.bot.send_message(
             chat_id=CHAT_ID,
             text="Gün başladı. Kalk. Su iç. Bahane üretme."
         )
 
-async def water_message():
+def water_message():
     if CHAT_ID:
-        await app.bot.send_message(
+        app.bot.send_message(
             chat_id=CHAT_ID,
             text="Su içme zamanı."
         )
 
-async def workout_message():
+def workout_message():
     if CHAT_ID:
-        await app.bot.send_message(
+        app.bot.send_message(
             chat_id=CHAT_ID,
             text="Antrenman saati. Erteleme yok."
         )
