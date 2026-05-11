@@ -11,8 +11,8 @@ from telegram.ext import (
 
 from openai import OpenAI
 
-TOKEN = os.getenv("TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+TOKEN = os.environ["TOKEN"]
+OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -43,7 +43,8 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(cevap)
 
     except Exception as e:
-        await update.message.reply_text(f"Hata:\n{e}")
+        print("HATA:", e)
+        await update.message.reply_text(f"Hata oluştu:\n{e}")
 
 app = ApplicationBuilder().token(TOKEN).build()
 
