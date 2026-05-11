@@ -11,6 +11,7 @@ from telegram.ext import (
 )
 
 from openai import OpenAI
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 TOKEN = os.environ["TOKEN"]
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
@@ -18,6 +19,8 @@ OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 DATA_FILE = "users.json"
+
+CHAT_ID = None
 
 SYSTEM_PROMPT = """
 Sen sert disiplinli fitness ve yaşam koçusun.
@@ -38,6 +41,10 @@ def save_users(data):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global CHAT_ID
+
+    CHAT_ID = update.effective_chat.id
+
     users = load_users()
 
     user_id = str(update.effective_user.id)
@@ -51,7 +58,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         save_users(users)
 
     await update.message.reply_text(
-        "AI Koç aktif.\nHedefini yaz."
+        "AI Koç aktif.\nDisiplin sistemi başlatıldı."
     )
 
 async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -108,6 +115,35 @@ app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat))
+
+scheduler = AsyncIOScheduler()
+
+async def morning_message():
+    if CHAT_ID:
+        await app.bot.send_message(
+            chat_id=CHAT_ID,
+            text="Gün başladı. Kalk. Su iç. Bahane üretme."
+        )
+
+async def water_message():
+    if CHAT_ID:
+        await app.bot.send_message(
+            chat_id=CHAT_ID,
+            text="Su içme zamanı."
+        )
+
+async def workout_message():
+    if CHAT_ID:
+        await app.bot.send_message(
+            chat_id=CHAT_ID,
+            text="Antrenman saati. Erteleme yok."
+        )
+
+scheduler.add_job(morning_message, "cron", hour=9, minute=0)
+scheduler.add_job(water_message, "cron", hour=13, minute=0)
+scheduler.add_job(workout_message, "cron", hour=18, minute=0)
+
+scheduler.start()
 
 print("Bot aktif...")
 
