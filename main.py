@@ -1,7 +1,12 @@
 import os
-import json
+import sqlite3
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup
+)
+
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -19,8 +24,6 @@ OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-DATA_FILE = "users.json"
-
 CHAT_ID = None
 
 SYSTEM_PROMPT = """
@@ -30,41 +33,68 @@ Kısa, net, motive edici konuş.
 Bahane kabul etme.
 """
 
-def load_users():
-    try:
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except:
-        return {}
+conn = sqlite3.connect(
+    "fitness.db",
+    check_same_thread=False
+)
 
-def save_users(data):
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+cursor = conn.cursor()
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS users (
+    user_id TEXT PRIMARY KEY,
+    name TEXT,
+    messages INTEGER,
+    streak INTEGER,
+    completed_today INTEGER,
+    weight REAL,
+    water INTEGER
+)
+""")
+
+conn.commit()
+
+def create_user(user_id, name):
+
+    cursor.execute("""
+    INSERT OR IGNORE INTO users
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (
+        user_id,
+        name,
+        0,
+        0,
+        0,
+        0,
+        0
+    ))
+
+    conn.commit()
+
+def get_user(user_id):
+
+    cursor.execute("""
+    SELECT * FROM users
+    WHERE user_id = ?
+    """, (user_id,))
+
+    return cursor.fetchone()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
     global CHAT_ID
 
     CHAT_ID = update.effective_chat.id
 
-    users = load_users()
-
     user_id = str(update.effective_user.id)
 
-    if user_id not in users:
-        users[user_id] = {
-            "name": update.effective_user.first_name,
-            "messages": 0,
-            "streak": 0,
-            "completed_today": False,
-            "weight": None,
-            "weight_history": [],
-            "water": 0
-        }
-
-        save_users(users)
+    create_user(
+        user_id,
+        update.effective_user.first_name
+    )
 
     await update.message.reply_text(
-        "AI Koç aktif.\nDisiplin sistemi başlatıldı."
+        "AI Koç aktif.\nSQLite sistemi aktif."
     )
 
 async def gorev(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -101,47 +131,52 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await query.answer()
 
-    users = load_users()
-
     user_id = str(query.from_user.id)
 
-    if user_id not in users:
+    user = get_user(user_id)
+
+    if not user:
         return
 
-    if query.data == "complete_task":
+    completed_today = user[4]
+    streak = user[3]
 
-        if users[user_id]["completed_today"]:
-
-            await query.message.reply_text(
-                "Bugünkü görev zaten tamamlandı."
-            )
-
-            return
-
-        users[user_id]["completed_today"] = True
-        users[user_id]["streak"] += 1
-
-        save_users(users)
+    if completed_today:
 
         await query.message.reply_text(
-            f"""
+            "Bugünkü görev zaten tamamlandı."
+        )
+
+        return
+
+    streak += 1
+
+    cursor.execute("""
+    UPDATE users
+    SET completed_today = 1,
+        streak = ?
+    WHERE user_id = ?
+    """, (
+        streak,
+        user_id
+    ))
+
+    conn.commit()
+
+    await query.message.reply_text(
+        f"""
 🔥 Görev tamamlandı.
 
 🔥 Streak:
-{users[user_id]['streak']} gün
+{streak} gün
 
 Disiplini bozma.
 """
-        )
+    )
 
 async def kilo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    users = load_users()
-
     user_id = str(update.effective_user.id)
-
-    if user_id not in users:
-        return
 
     try:
         kg = float(context.args[0])
@@ -152,71 +187,81 @@ async def kilo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    users[user_id]["weight"] = kg
-    users[user_id]["weight_history"].append(kg)
+    cursor.execute("""
+    UPDATE users
+    SET weight = ?
+    WHERE user_id = ?
+    """, (
+        kg,
+        user_id
+    ))
 
-    save_users(users)
+    conn.commit()
 
     await update.message.reply_text(
         f"""
-✅ Kilo kaydedildi.
+⚖️ Kilo kaydedildi.
 
-⚖️ Şu anki kilo:
+Yeni kilo:
 {kg} kg
 """
     )
 
 async def su(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    users = load_users()
-
     user_id = str(update.effective_user.id)
 
-    if user_id not in users:
-        return
+    user = get_user(user_id)
 
-    users[user_id]["water"] += 1
+    water = user[6] + 1
 
-    save_users(users)
+    cursor.execute("""
+    UPDATE users
+    SET water = ?
+    WHERE user_id = ?
+    """, (
+        water,
+        user_id
+    ))
+
+    conn.commit()
 
     await update.message.reply_text(
         f"""
 💧 Su kaydedildi.
 
 Bugünkü su:
-{users[user_id]['water']} bardak
+{water} bardak
 """
     )
 
 async def durum(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    users = load_users()
-
     user_id = str(update.effective_user.id)
 
-    if user_id not in users:
-        return
+    user = get_user(user_id)
 
-    user = users[user_id]
+    if not user:
+        return
 
     await update.message.reply_text(
         f"""
 📊 DURUM
 
 👤 İsim:
-{user['name']}
+{user[1]}
 
 🔥 Streak:
-{user['streak']} gün
+{user[3]} gün
 
 💬 Mesaj:
-{user['messages']}
+{user[2]}
 
 ⚖️ Kilo:
-{user['weight']} kg
+{user[5]} kg
 
 💧 Su:
-{user['water']} bardak
+{user[6]} bardak
 """
     )
 
@@ -224,32 +269,38 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
 
-        users = load_users()
-
         user_id = str(update.effective_user.id)
 
-        if user_id not in users:
+        user = get_user(user_id)
 
-            users[user_id] = {
-                "name": update.effective_user.first_name,
-                "messages": 0,
-                "streak": 0,
-                "completed_today": False,
-                "weight": None,
-                "weight_history": [],
-                "water": 0
-            }
+        if not user:
 
-        users[user_id]["messages"] += 1
+            create_user(
+                user_id,
+                update.effective_user.first_name
+            )
 
-        save_users(users)
+            user = get_user(user_id)
+
+        messages = user[2] + 1
+
+        cursor.execute("""
+        UPDATE users
+        SET messages = ?
+        WHERE user_id = ?
+        """, (
+            messages,
+            user_id
+        ))
+
+        conn.commit()
 
         memory_text = f"""
-Kullanıcı adı: {users[user_id]['name']}
-Toplam mesaj: {users[user_id]['messages']}
-Streak: {users[user_id]['streak']}
-Kilo: {users[user_id]['weight']}
-Su: {users[user_id]['water']}
+Kullanıcı adı: {user[1]}
+Toplam mesaj: {messages}
+Streak: {user[3]}
+Kilo: {user[5]}
+Su: {user[6]}
 """
 
         response = client.chat.completions.create(
@@ -304,14 +355,13 @@ scheduler = BackgroundScheduler()
 
 def reset_daily_tasks():
 
-    users = load_users()
+    cursor.execute("""
+    UPDATE users
+    SET completed_today = 0,
+        water = 0
+    """)
 
-    for user_id in users:
-
-        users[user_id]["completed_today"] = False
-        users[user_id]["water"] = 0
-
-    save_users(users)
+    conn.commit()
 
     print("Günlük görevler sıfırlandı.")
 
