@@ -1,5 +1,3 @@
-# commands.py
-
 import os
 import base64
 import matplotlib.pyplot as plt
@@ -178,6 +176,15 @@ async def su(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user = get_user(user_id)
 
+    if not user:
+
+        create_user(
+            user_id,
+            update.effective_user.first_name
+        )
+
+        user = get_user(user_id)
+
     water = user[6] + 1
 
     cursor.execute("""
@@ -205,6 +212,15 @@ async def durum(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
 
     user = get_user(user_id)
+
+    if not user:
+
+        create_user(
+            user_id,
+            update.effective_user.first_name
+        )
+
+        user = get_user(user_id)
 
     await update.message.reply_text(
         f"""
@@ -349,6 +365,15 @@ async def voice_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         user = get_user(user_id)
 
+        if not user:
+
+            create_user(
+                user_id,
+                update.effective_user.first_name
+            )
+
+            user = get_user(user_id)
+
         cevap = await ask_ai(
             user,
             transcript
@@ -366,6 +391,36 @@ async def voice_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Hata oluştu:\n{e}"
         )
 
+async def liderlik(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    cursor.execute("""
+    SELECT name, streak
+    FROM users
+    ORDER BY streak DESC
+    LIMIT 10
+    """)
+
+    rows = cursor.fetchall()
+
+    if not rows:
+
+        await update.message.reply_text(
+            "Liderlik verisi yok."
+        )
+
+        return
+
+    text = "🏆 LİDERLİK TABLOSU\n\n"
+
+    for index, row in enumerate(rows, start=1):
+
+        text += (
+            f"{index}. {row[0]} - "
+            f"{row[1]} gün streak\n"
+        )
+
+    await update.message.reply_text(text)
+
 async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
@@ -373,6 +428,15 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = str(update.effective_user.id)
 
         user = get_user(user_id)
+
+        if not user:
+
+            create_user(
+                user_id,
+                update.effective_user.first_name
+            )
+
+            user = get_user(user_id)
 
         cevap = await ask_ai(
             user,
