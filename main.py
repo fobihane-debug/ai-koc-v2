@@ -1,11 +1,12 @@
 import os
 import json
 
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
     MessageHandler,
+    CallbackQueryHandler,
     filters,
     ContextTypes,
 )
@@ -56,7 +57,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "streak": 0,
             "completed_today": False,
             "weight": None,
-            "weight_history": []
+            "weight_history": [],
+            "water": 0
         }
 
         save_users(users)
@@ -66,6 +68,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def gorev(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    keyboard = [
+        [
+            InlineKeyboardButton(
+                "✅ Görevi Tamamladım",
+                callback_data="complete_task"
+            )
+        ]
+    ]
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
     mesaj = """
 BUGÜNÜN GÖREVLERİ
 
@@ -74,13 +88,51 @@ BUGÜNÜN GÖREVLERİ
 ✅ Şeker yok
 ✅ 10 dk yürüyüş
 ✅ Erken uyku
-
-Bitince:
-tamamladım
-yaz.
 """
 
-    await update.message.reply_text(mesaj)
+    await update.message.reply_text(
+        mesaj,
+        reply_markup=reply_markup
+    )
+
+async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    query = update.callback_query
+
+    await query.answer()
+
+    users = load_users()
+
+    user_id = str(query.from_user.id)
+
+    if user_id not in users:
+        return
+
+    if query.data == "complete_task":
+
+        if users[user_id]["completed_today"]:
+
+            await query.message.reply_text(
+                "Bugünkü görev zaten tamamlandı."
+            )
+
+            return
+
+        users[user_id]["completed_today"] = True
+        users[user_id]["streak"] += 1
+
+        save_users(users)
+
+        await query.message.reply_text(
+            f"""
+🔥 Görev tamamlandı.
+
+🔥 Streak:
+{users[user_id]['streak']} gün
+
+Disiplini bozma.
+"""
+        )
 
 async def kilo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
@@ -109,8 +161,30 @@ async def kilo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"""
 ✅ Kilo kaydedildi.
 
-Şu anki kilo:
+⚖️ Şu anki kilo:
 {kg} kg
+"""
+    )
+
+async def su(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    users = load_users()
+
+    user_id = str(update.effective_user.id)
+
+    if user_id not in users:
+        return
+
+    users[user_id]["water"] += 1
+
+    save_users(users)
+
+    await update.message.reply_text(
+        f"""
+💧 Su kaydedildi.
+
+Bugünkü su:
+{users[user_id]['water']} bardak
 """
     )
 
@@ -140,51 +214,31 @@ async def durum(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 ⚖️ Kilo:
 {user['weight']} kg
+
+💧 Su:
+{user['water']} bardak
 """
     )
 
 async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
     try:
+
         users = load_users()
 
         user_id = str(update.effective_user.id)
 
         if user_id not in users:
+
             users[user_id] = {
                 "name": update.effective_user.first_name,
                 "messages": 0,
                 "streak": 0,
                 "completed_today": False,
                 "weight": None,
-                "weight_history": []
+                "weight_history": [],
+                "water": 0
             }
-
-        message_text = update.message.text.lower()
-
-        if "tamamladım" in message_text:
-
-            if users[user_id]["completed_today"]:
-                await update.message.reply_text(
-                    "Bugünkü görev zaten tamamlandı."
-                )
-                return
-
-            users[user_id]["completed_today"] = True
-            users[user_id]["streak"] += 1
-
-            save_users(users)
-
-            await update.message.reply_text(
-                f"""
-🔥 Görev tamamlandı.
-
-Streak:
-{users[user_id]['streak']} gün
-
-Disiplini bozma.
-"""
-            )
-            return
 
         users[user_id]["messages"] += 1
 
@@ -195,6 +249,7 @@ Kullanıcı adı: {users[user_id]['name']}
 Toplam mesaj: {users[user_id]['messages']}
 Streak: {users[user_id]['streak']}
 Kilo: {users[user_id]['weight']}
+Su: {users[user_id]['water']}
 """
 
         response = client.chat.completions.create(
@@ -221,8 +276,12 @@ Kilo: {users[user_id]['weight']}
         await update.message.reply_text(cevap)
 
     except Exception as e:
+
         print("HATA:", e)
-        await update.message.reply_text(f"Hata oluştu:\n{e}")
+
+        await update.message.reply_text(
+            f"Hata oluştu:\n{e}"
+        )
 
 app = ApplicationBuilder().token(TOKEN).build()
 
@@ -230,6 +289,9 @@ app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("gorev", gorev))
 app.add_handler(CommandHandler("kilo", kilo))
 app.add_handler(CommandHandler("durum", durum))
+app.add_handler(CommandHandler("su", su))
+
+app.add_handler(CallbackQueryHandler(button_click))
 
 app.add_handler(
     MessageHandler(
@@ -241,10 +303,13 @@ app.add_handler(
 scheduler = BackgroundScheduler()
 
 def reset_daily_tasks():
+
     users = load_users()
 
     for user_id in users:
+
         users[user_id]["completed_today"] = False
+        users[user_id]["water"] = 0
 
     save_users(users)
 
