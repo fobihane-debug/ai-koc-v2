@@ -1,5 +1,6 @@
 import os
 import sqlite3
+import matplotlib.pyplot as plt
 
 from telegram import (
     Update,
@@ -22,6 +23,8 @@ from apscheduler.schedulers.background import BackgroundScheduler
 TOKEN = os.environ["TOKEN"]
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 
+ADMIN_ID = "BURAYA_ADMIN_ID"
+
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 CHAT_ID = None
@@ -29,7 +32,7 @@ CHAT_ID = None
 SYSTEM_PROMPT = """
 Sen sert disiplinli fitness ve yaşam koçusun.
 
-Kısa, net, motive edici konuş.
+Kısa, net ve motive edici konuş.
 Bahane kabul etme.
 """
 
@@ -49,6 +52,14 @@ CREATE TABLE IF NOT EXISTS users (
     completed_today INTEGER,
     weight REAL,
     water INTEGER
+)
+""")
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS weight_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT,
+    weight REAL
 )
 """)
 
@@ -88,13 +99,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = str(update.effective_user.id)
 
+    print("ADMIN ID:", user_id)
+
     create_user(
         user_id,
         update.effective_user.first_name
     )
 
     await update.message.reply_text(
-        "AI Koç aktif.\nSQLite sistemi aktif."
+        "AI Koç aktif.\nProfesyonel sistem aktif."
     )
 
 async def gorev(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -169,8 +182,6 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 🔥 Streak:
 {streak} gün
-
-Disiplini bozma.
 """
     )
 
@@ -196,6 +207,14 @@ async def kilo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id
     ))
 
+    cursor.execute("""
+    INSERT INTO weight_history (user_id, weight)
+    VALUES (?, ?)
+    """, (
+        user_id,
+        kg
+    ))
+
     conn.commit()
 
     await update.message.reply_text(
@@ -204,6 +223,72 @@ async def kilo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 Yeni kilo:
 {kg} kg
+"""
+    )
+
+async def grafik(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    user_id = str(update.effective_user.id)
+
+    cursor.execute("""
+    SELECT weight FROM weight_history
+    WHERE user_id = ?
+    """, (user_id,))
+
+    rows = cursor.fetchall()
+
+    if not rows:
+        await update.message.reply_text(
+            "Kilo verisi yok."
+        )
+        return
+
+    kilos = [row[0] for row in rows]
+
+    plt.figure(figsize=(6,4))
+    plt.plot(kilos, marker="o")
+    plt.title("Kilo Değişimi")
+    plt.xlabel("Kayıt")
+    plt.ylabel("Kg")
+
+    grafik_path = "grafik.png"
+
+    plt.savefig(grafik_path)
+
+    plt.close()
+
+    await update.message.reply_photo(
+        photo=open(grafik_path, "rb")
+    )
+
+async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    user_id = str(update.effective_user.id)
+
+    if user_id != ADMIN_ID:
+        return
+
+    cursor.execute("""
+    SELECT COUNT(*) FROM users
+    """)
+
+    total_users = cursor.fetchone()[0]
+
+    cursor.execute("""
+    SELECT SUM(messages) FROM users
+    """)
+
+    total_messages = cursor.fetchone()[0]
+
+    await update.message.reply_text(
+        f"""
+📊 ADMIN PANEL
+
+👥 Toplam kullanıcı:
+{total_users}
+
+💬 Toplam mesaj:
+{total_messages}
 """
     )
 
@@ -341,6 +426,8 @@ app.add_handler(CommandHandler("gorev", gorev))
 app.add_handler(CommandHandler("kilo", kilo))
 app.add_handler(CommandHandler("durum", durum))
 app.add_handler(CommandHandler("su", su))
+app.add_handler(CommandHandler("grafik", grafik))
+app.add_handler(CommandHandler("admin", admin))
 
 app.add_handler(CallbackQueryHandler(button_click))
 
