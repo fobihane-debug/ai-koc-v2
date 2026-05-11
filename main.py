@@ -23,7 +23,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 TOKEN = os.environ["TOKEN"]
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 
-ADMIN_ID = "BURAYA_ADMIN_ID"
+ADMIN_ID = "7653341950"
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
